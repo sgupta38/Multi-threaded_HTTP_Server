@@ -1,7 +1,7 @@
 # @Author: Sonu Gupta
 # @Date: 9/4/18
-# @Purpose: This file serves as a HTTP Server.
-#
+# @Purpose: This file serves as a HTTP Server. Currently, it is supporting only 'HTTP GET' requests.
+#           
 
 import os
 import sys
@@ -9,17 +9,21 @@ import re
 import socket
 import time
 import threading
-from wsgiref.handlers import format_date_time
 from mimetypes import MimeTypes
+from wsgiref.handlers import format_date_time
 
-host = '127.0.0.1'
-port = 65431
-pageCount = 0;
+# Global variables
 pdfCount = 0;
-packageCount = 0;
+pageCount = 0;
 imageCount = 0;
+packageCount = 0;
+port = 8080
+host = '127.0.0.1'
 
+# Regular expression to parse HTTP GET request and get resource name
 request_pattern = r'GET /(?P<Resource>(.*)) HTTP/1.1'
+
+# HTTP Response header functions.
 
 def getHTTPDate():
     date = format_date_time(time.time())
@@ -57,6 +61,7 @@ def getContentType(resource_path):
 def getHTTPConnection():
     return 'Connection: Keep-Alive\r\n' # Keeps connection alive and avoids "incomplete downloa" issue.
 
+# Method to create final 'HTTP Response' header.
 def createHTTP_Response_header(resource_name, code):
     try:
         if code == 404:
@@ -80,6 +85,7 @@ def createHTTP_Response_header(resource_name, code):
         print("Some error occured in createHTTP_Response_header()")
         return ''
 
+# Function to parse the regular expression.
 def parseRequest(request):
     try:
         pattern = re.compile(request_pattern)
@@ -91,7 +97,7 @@ def parseRequest(request):
     except:
         print("Some error occured in parseRequest()")
         return ''
-
+# Function to send the 'Resource file' to connected client
 def sendResourceFile(conn, res_file, code):
     try:
         if code == 404:
@@ -110,6 +116,7 @@ def sendResourceFile(conn, res_file, code):
         res_file.close()
         return False
 
+# Function to send '404.html' in case of failures.
 def sendResourceNotFound(conn):
     try:
         resource = 'www/404.html'
@@ -117,40 +124,40 @@ def sendResourceNotFound(conn):
         conn.sendall(http_response_header.encode('ascii'))
         sendResourceFile(conn, resource, 404)
         print('404 error not found')
-        print('Client request is served')
     except:
         print("Some Internal error occured:: Request Error")
     finally:
-        print('Shutting down the opened socket.')
         conn.shutdown(socket.SHUT_RDWR)
         conn.close()
 
-def handleClientConncetion(conn, addr):
-    # receive request here
-    global pageCount, pdfCount , packageCount , imageCount
+# Function to print the 'resource info'
+def printResourceInfo(addr, rs, count):
+     print('/' + rs + ' | ' + str(addr[0]) + ' | ' + str(addr[1]) + ' | ' + str(count))
 
-    print('Thread id: ', threading.get_ident())
+# 'Thread fuction' called for each client connection
+def handleClientConncetion(conn, addr):
+    global pageCount, pdfCount , packageCount , imageCount
+    #print('Thread id: ', threading.get_ident())
     req = conn.recv(1024);
     if req:
-        print('Request received is: ', req.decode('ascii'))
         rs = parseRequest(req.decode('ascii'))
 
         if rs:
             if rs == 'test.html':
                 pageCount += 1
-                print('/' + rs + ' | ' + str(addr[0]) + ' | ' + str(addr[1]) + ' | ' + str(pageCount))
+                printResourceInfo(addr, rs, pageCount)
 
             elif rs == 'pdf-sample.pdf':
                 pdfCount += 1
-                print('/' + rs + ' | ' + str(addr[0]) + ' | ' + str(addr[1]) + ' | ' + str(pdfCount))
+                printResourceInfo(addr, rs, pdfCount)
 
             elif rs == 'lena_std.tif':
                 imageCount +=1
-                print('/' + rs + ' | ' + str(addr[0]) + ' | ' + str(addr[1]) + ' | ' + str(imageCount))
+                printResourceInfo(addr, rs, imageCount)
 
             elif rs == 'skype-ubuntu-precise_4.3.0.37-1_i386.deb':
                 packageCount += 1
-                print('/' + rs + ' | ' + str(addr[0]) + ' | ' + str(addr[1]) + ' | ' + str(packageCount))
+                printResourceInfo(addr, rs, packageCount)
 
             resource = 'www/' + rs
             isResource = os.path.exists(resource)
@@ -163,12 +170,9 @@ def handleClientConncetion(conn, addr):
                 http_response_header = createHTTP_Response_header(resource, code)
                 conn.sendall(http_response_header.encode('ascii'))
                 sendResourceFile(conn, resource, code)
-                print('Send completed')
-                print('Client request is served')
             except:
                 print("Some Internal error occured:: Resource Not Found")
             finally:
-                print('Shutting down the opened socket.')
                 conn.shutdown(socket.SHUT_RDWR)
                 conn.close()
         else:
@@ -179,23 +183,23 @@ def handleClientConncetion(conn, addr):
 
     return True
 
-## this will go into main routine
+## Main Function of HTTP Server. Creates socket, binds and listens for client connections.
 def main():
     isDir = os.path.isdir('www')
     if isDir is False:
+        print("Resource directory 'www' does not exist. Quitting the server.")
         os._exit(1)
 
     sock = socket.socket();
     sock.bind((host, port))
     sock.listen()
-    print('\nHTTP Server is Listening at \n')
-    print('Host: ', host)
-    print('Port: ', port)
-    resource = ''
+    print('\nHTTP Server is Running on \n')
+    print('Host Name: ', host)
+    print('Port Number: ', port)
+    print('')
 
     while True:
         conn, addr = sock.accept()
-        print('\nConnected to', conn, addr)
         # spawn new thread here
         threading.Thread(target = handleClientConncetion, args=(conn, addr,)).start()
 
