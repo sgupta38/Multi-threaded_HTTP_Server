@@ -3,19 +3,21 @@
 # @Purpose: This file serves as a HTTP Server.
 #
 
-#@todo: exception handling at server side for 1. Regular expressions, 2. socket errors
-#
-
 import os
 import sys
 import re
 import socket
 import time
+import threading
 from wsgiref.handlers import format_date_time
 from mimetypes import MimeTypes
 
 host = '127.0.0.1'
 port = 65431
+pageCount = 0;
+pdfCount = 0;
+packageCount = 0;
+imageCount = 0;
 
 request_pattern = r'GET /(?P<Resource>(.*)) HTTP/1.1'
 
@@ -78,11 +80,6 @@ def createHTTP_Response_header(resource_name, code):
         print("Some error occured in createHTTP_Response_header()")
         return ''
 
-## @todo exception handling AttributeError("'NoneType' object has no attribute 'group'",).
-#
-# for exception, send error_html back and close the connection
-
-# @note: Function used to parse the HTTP request, and get the resource which needs to be looked up in 'www' directory.
 def parseRequest(request):
     try:
         pattern = re.compile(request_pattern)
@@ -128,8 +125,66 @@ def sendResourceNotFound(conn):
         conn.shutdown(socket.SHUT_RDWR)
         conn.close()
 
+def handleClientConncetion(conn, addr):
+    # receive request here
+    global pageCount, pdfCount , packageCount , imageCount
+
+    print('Thread id: ', threading.get_ident())
+    req = conn.recv(1024);
+    if req:
+        print('Request received is: ', req.decode('ascii'))
+        rs = parseRequest(req.decode('ascii'))
+
+        if rs:
+            if rs == 'test.html':
+                pageCount += 1
+                print('/' + rs + ' | ' + str(addr[0]) + ' | ' + str(addr[1]) + ' | ' + str(pageCount))
+
+            elif rs == 'pdf-sample.pdf':
+                pdfCount += 1
+                print('/' + rs + ' | ' + str(addr[0]) + ' | ' + str(addr[1]) + ' | ' + str(pdfCount))
+
+            elif rs == 'lena_std.tif':
+                imageCount +=1
+                print('/' + rs + ' | ' + str(addr[0]) + ' | ' + str(addr[1]) + ' | ' + str(imageCount))
+
+            elif rs == 'skype-ubuntu-precise_4.3.0.37-1_i386.deb':
+                packageCount += 1
+                print('/' + rs + ' | ' + str(addr[0]) + ' | ' + str(addr[1]) + ' | ' + str(packageCount))
+
+            resource = 'www/' + rs
+            isResource = os.path.exists(resource)
+
+            if(isResource):
+                code = 200   # if resource found in 'www'
+            else:
+                code = 404   # if resource not found in 'www'
+            try:
+                http_response_header = createHTTP_Response_header(resource, code)
+                conn.sendall(http_response_header.encode('ascii'))
+                sendResourceFile(conn, resource, code)
+                print('Send completed')
+                print('Client request is served')
+            except:
+                print("Some Internal error occured:: Resource Not Found")
+            finally:
+                print('Shutting down the opened socket.')
+                conn.shutdown(socket.SHUT_RDWR)
+                conn.close()
+        else:
+            sendResourceNotFound(conn)
+
+    else: # For invalid requests
+        sendResourceNotFound(conn)
+
+    return True
+
 ## this will go into main routine
 def main():
+    isDir = os.path.isdir('www')
+    if isDir is False:
+        os._exit(1)
+
     sock = socket.socket();
     sock.bind((host, port))
     sock.listen()
@@ -141,49 +196,9 @@ def main():
     while True:
         conn, addr = sock.accept()
         print('\nConnected to', conn, addr)
-        # receive request here
-        req = conn.recv(1024);
-        if req:
-            print('Request received is: ', req.decode('ascii'))
-            rs = parseRequest(req.decode('ascii'))
-
-            if rs:
-                isDir = os.path.isdir('www');
-
-                if isDir:
-                    print('Need to check Resource: ', rs)
-                    resource = 'www/' + rs
-                    isResource = os.path.exists(resource)
-
-                    if(isResource):
-                        code = 200   # if resource found in 'www'
-                    else:
-                        code = 404   # if resource not found in 'www'
-                    try:
-                        http_response_header = createHTTP_Response_header(resource, code)
-                        conn.sendall(http_response_header.encode('ascii'))
-                        sendResourceFile(conn, resource, code)
-                        print('Send completed')
-                        print('Client request is served')
-                    except:
-                        print("Some Internal error occured:: Resource Not Found")
-                    finally:
-                        print('Shutting down the opened socket.')
-                        conn.shutdown(socket.SHUT_RDWR)
-                        conn.close()
-
-                else: #'www' directory doesnt exist. show error and quit
-                    print("Directory \'www\' does not exist. Server is quitting.")
-                    conn.shutdown(socket.SHUT_RDWR)
-                    conn.close()
-                    break;
-            else:
-                sendResourceNotFound(conn)
-
-        else:
-            sendResourceNotFound(conn)
-            
+        # spawn new thread here
+        threading.Thread(target = handleClientConncetion, args=(conn, addr,)).start()
 
 # Main routine starts here
 main()
-os._exit(1)
+sock.close()
