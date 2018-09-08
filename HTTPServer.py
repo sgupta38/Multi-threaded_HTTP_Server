@@ -56,22 +56,27 @@ def getHTTPConnection():
     return 'Connection: Keep-Alive\r\n' # Keeps connection alive and avoids "incomplete downloa" issue.
 
 def createHTTP_Response_header(resource_name, code):
-    if code == 404:
-        resource_name = 'www/404.html'
+    try:
+        if code == 404:
+            resource_name = 'www/404.html'
 
-    HTTP_Response = getHTTPStatus(code) + \
-                    getHTTPDate() + \
-                    getServerName() + \
-                    getContentLength(resource_name) + \
-                    getContentType(resource_name) + \
-                    getHTTPConnection()
+        HTTP_Response = getHTTPStatus(code) + \
+                        getHTTPDate() + \
+                        getServerName() + \
+                        getContentLength(resource_name) + \
+                        getContentType(resource_name) + \
+                        getHTTPConnection()
 
-    if code == 200:
-        HTTP_Response += getLastModifiedTime(resource_name)  # Only existing resource has modified time
+        if code == 200:
+            HTTP_Response += getLastModifiedTime(resource_name)  # Only existing resource has modified time
     
-    HTTP_Response += '\r\n'  # Adding blank line
+        HTTP_Response += '\r\n'  # Adding blank line
 
-    return HTTP_Response
+        return HTTP_Response
+
+    except:
+        print("Some error occured in createHTTP_Response_header()")
+        return ''
 
 ## @todo exception handling AttributeError("'NoneType' object has no attribute 'group'",).
 #
@@ -79,25 +84,49 @@ def createHTTP_Response_header(resource_name, code):
 
 # @note: Function used to parse the HTTP request, and get the resource which needs to be looked up in 'www' directory.
 def parseRequest(request):
-    pattern = re.compile(request_pattern)
-    match = pattern.match(request)
-    if match is None:
+    try:
+        pattern = re.compile(request_pattern)
+        match = pattern.match(request)
+        if match is None:
+            return ''
+        else:
+            return match.group('Resource')
+    except:
+        print("Some error occured in parseRequest()")
         return ''
-    else:
-        return match.group('Resource')
 
 def sendResourceFile(conn, res_file, code):
-    if code == 404:
-        res_file = 'www/404.html'
+    try:
+        if code == 404:
+            res_file = 'www/404.html'
 
-    res_file = open(res_file, 'rb')
-    data = res_file.read(1024)
-    while data:
-        conn.send(data)
+        res_file = open(res_file, 'rb')
         data = res_file.read(1024)
+        while data:
+            conn.send(data)
+            data = res_file.read(1024)
 
-    res_file.close()
-    return True
+        res_file.close()
+        return True
+    except:
+        print("Some error occured in sendResourceFile()")
+        res_file.close()
+        return False
+
+def sendResourceNotFound(conn):
+    try:
+        resource = 'www/404.html'
+        http_response_header = createHTTP_Response_header(resource, 404)
+        conn.sendall(http_response_header.encode('ascii'))
+        sendResourceFile(conn, resource, 404)
+        print('404 error not found')
+        print('Client request is served')
+    except:
+        print("Some Internal error occured:: Request Error")
+    finally:
+        print('Shutting down the opened socket.')
+        conn.shutdown(socket.SHUT_RDWR)
+        conn.close()
 
 ## this will go into main routine
 def main():
@@ -107,13 +136,14 @@ def main():
     print('\nHTTP Server is Listening at \n')
     print('Host: ', host)
     print('Port: ', port)
+    resource = ''
 
     while True:
         conn, addr = sock.accept()
         print('\nConnected to', conn, addr)
         # receive request here
         req = conn.recv(1024);
-        if req is not None:
+        if req:
             print('Request received is: ', req.decode('ascii'))
             rs = parseRequest(req.decode('ascii'))
 
@@ -126,28 +156,34 @@ def main():
                     isResource = os.path.exists(resource)
 
                     if(isResource):
-                        code = 200
+                        code = 200   # if resource found in 'www'
                     else:
-                        code = 404
+                        code = 404   # if resource not found in 'www'
+                    try:
+                        http_response_header = createHTTP_Response_header(resource, code)
+                        conn.sendall(http_response_header.encode('ascii'))
+                        sendResourceFile(conn, resource, code)
+                        print('Send completed')
+                        print('Client request is served')
+                    except:
+                        print("Some Internal error occured:: Resource Not Found")
+                    finally:
+                        print('Shutting down the opened socket.')
+                        conn.shutdown(socket.SHUT_RDWR)
+                        conn.close()
 
-                    http_response_header = createHTTP_Response_header(resource, code)
-                    conn.sendall(http_response_header.encode('ascii'))
-                    sendResourceFile(conn, resource, code)
+                else: #'www' directory doesnt exist. show error and quit
+                    print("Directory \'www\' does not exist. Server is quitting.")
                     conn.shutdown(socket.SHUT_RDWR)
                     conn.close()
-
-                    print('Send completed')
-                    print('Client request is served')
+                    break;
             else:
-                resource = 'www/404.html'
-                http_response_header = createHTTP_Response_header(resource, 404)
-                conn.sendall(http_response_header.encode('ascii'))
-                sendResourceFile(conn, resource, 404)
-                conn.shutdown(socket.SHUT_RDWR)
-                conn.close()
+                sendResourceNotFound(conn)
 
-                print('404 error not found')
-                print('Client request is served')
+        else:
+            sendResourceNotFound(conn)
+            
 
 # Main routine starts here
 main()
+os._exit(1)
