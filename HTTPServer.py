@@ -9,19 +9,29 @@ import re
 import socket
 import time
 import threading
+from threading import Lock
 from mimetypes import MimeTypes
 from wsgiref.handlers import format_date_time
 
 # Global variables
-pdfCount = 0;
-pageCount = 0;
-imageCount = 0;
-packageCount = 0;
-port = 8080
 host = '127.0.0.1'
+resourceMap = dict()
+
+# Locking Variable.
+lock = Lock()
 
 # Regular expression to parse HTTP GET request and get resource name
 request_pattern = r'GET /(?P<Resource>(.*)) HTTP/1.1'
+
+def listResources():
+    isDir = os.path.isdir('www')
+    if isDir is False:
+        print("Resource directory 'www' does not exist. Quitting the server.")
+        os._exit(1)
+    else:
+        files = os.listdir('www/')
+        for f in files:
+            resourceMap[f]=0 # initially all resiurces zero
 
 # HTTP Response header functions.
 
@@ -142,22 +152,13 @@ def handleClientConncetion(conn, addr):
     if req:
         rs = parseRequest(req.decode('ascii'))
 
-        if rs:
-            if rs == 'test.html':
-                pageCount += 1
-                printResourceInfo(addr, rs, pageCount)
+        if rs in resourceMap:
+            # Locking the shared dictionary.
+            lock.acquire()
+            resourceMap[rs] = resourceMap[rs] + 1 
+            lock.release()
 
-            elif rs == 'pdf-sample.pdf':
-                pdfCount += 1
-                printResourceInfo(addr, rs, pdfCount)
-
-            elif rs == 'lena_std.tif':
-                imageCount +=1
-                printResourceInfo(addr, rs, imageCount)
-
-            elif rs == 'skype-ubuntu-precise_4.3.0.37-1_i386.deb':
-                packageCount += 1
-                printResourceInfo(addr, rs, packageCount)
+            printResourceInfo(addr, rs, resourceMap[rs])
 
             resource = 'www/' + rs
             isResource = os.path.exists(resource)
@@ -185,17 +186,14 @@ def handleClientConncetion(conn, addr):
 
 ## Main Function of HTTP Server. Creates socket, binds and listens for client connections.
 def main():
-    isDir = os.path.isdir('www')
-    if isDir is False:
-        print("Resource directory 'www' does not exist. Quitting the server.")
-        os._exit(1)
-
+    listResources()
+    #print(resourceMap)
     sock = socket.socket();
-    sock.bind((host, port))
+    sock.bind(('',0))
     sock.listen()
     print('\nHTTP Server is Running on \n')
     print('Host Name: ', host)
-    print('Port Number: ', port)
+    print('Port Number: ', sock.getsockname()[1])
     print('')
 
     while True:
