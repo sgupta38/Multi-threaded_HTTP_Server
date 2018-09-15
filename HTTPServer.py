@@ -190,7 +190,7 @@ def main():
     #print(resourceMap)
     sock = socket.socket();
     sock.bind(('',0))
-    sock.listen()
+    sock.listen(5)
     print('\nHTTP Server is Running on \n')
     print('Host Name: ', host)
     print('Port Number: ', sock.getsockname()[1])
