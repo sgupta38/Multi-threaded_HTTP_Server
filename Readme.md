@@ -35,12 +35,15 @@ make internally calls `python3 HTTPServer.py`
 ***For web browsers***: Simply type following URL-
 			
 
-    http://127.0.0.1:8080/test.html
+	http://remote04.cs.binghamton.edu:39471/skype-ubuntu-precise_4.3.0.37-1_i386.deb
 			
 ***For wget***: Type following comment.
-		
-	wget http://127.0.0.1:8080/test.html
+	
+	wget http://remote04.cs.binghamton.edu:39471/skype-ubuntu-precise_4.3.0.37-1_i386.deb --limit-rate 60k
 			
 ### Sample Input/Output:
+
+![alt text](https://github.com/Yao-Liu-CS457-CS557/cs457-cs557-pa1-sgupta38/blob/master/output.png)
+
 ---
 
