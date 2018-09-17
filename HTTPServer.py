@@ -16,6 +16,9 @@ from wsgiref.handlers import format_date_time
 # Global variables
 host = '127.0.0.1'
 resourceMap = dict()
+CODE_OK_200 = 200
+CODE_NOT_FOUND_404 = 404
+BUFFER_SIZE = 1024
 
 # Locking Variable.
 lock = Lock()
@@ -31,7 +34,7 @@ def listResources():
     else:
         files = os.listdir('www/')
         for f in files:
-            resourceMap[f]=0 # initially all resiurces zero
+            resourceMap[f]=0 # initially all resources zero
 
 # HTTP Response header functions.
 
@@ -41,7 +44,7 @@ def getHTTPDate():
     return http_date
 
 def getHTTPStatus(code):
-    if code == 200:
+    if code == CODE_OK_200:
         return 'HTTP/1.1 200 OK\r\n'
     else:
         return 'HTTP/1.1 404 Not Found\r\n'
@@ -74,7 +77,7 @@ def getHTTPConnection():
 # Method to create final 'HTTP Response' header.
 def createHTTP_Response_header(resource_name, code):
     try:
-        if code == 404:
+        if code == CODE_NOT_FOUND_404:
             resource_name = 'www/404.html'
 
         HTTP_Response = getHTTPStatus(code) + \
@@ -84,7 +87,7 @@ def createHTTP_Response_header(resource_name, code):
                         getContentType(resource_name) + \
                         getHTTPConnection()
 
-        if code == 200:
+        if code == CODE_OK_200:
             HTTP_Response += getLastModifiedTime(resource_name)  # Only existing resource has modified time
     
         HTTP_Response += '\r\n'  # Adding blank line
@@ -107,22 +110,23 @@ def parseRequest(request):
     except:
         print("Some error occured in parseRequest()")
         return ''
+		
 # Function to send the 'Resource file' to connected client
 def sendResourceFile(conn, res_file, code):
     try:
-        if code == 404:
+        if code == CODE_NOT_FOUND_404:
             res_file = 'www/404.html'
 
         res_file = open(res_file, 'rb')
-        data = res_file.read(1024)
+        data = res_file.read(BUFFER_SIZE)
         while data:
             conn.send(data)
-            data = res_file.read(1024)
+            data = res_file.read(BUFFER_SIZE)
 
         res_file.close()
         return True
     except:
-        print("Some error occured in sendResourceFile()")
+        print("Connection Problem:: Some error occured in sendResourceFile()")
         res_file.close()
         return False
 
@@ -132,7 +136,7 @@ def sendResourceNotFound(conn):
         resource = 'www/404.html'
         http_response_header = createHTTP_Response_header(resource, 404)
         conn.sendall(http_response_header.encode('ascii'))
-        sendResourceFile(conn, resource, 404)
+        sendResourceFile(conn, resource, CODE_NOT_FOUND_404)
         print('404 error not found')
     except:
         print("Some Internal error occured:: Request Error")
@@ -148,7 +152,7 @@ def printResourceInfo(addr, rs, count):
 def handleClientConncetion(conn, addr):
     global pageCount, pdfCount , packageCount , imageCount
     #print('Thread id: ', threading.get_ident())
-    req = conn.recv(1024);
+    req = conn.recv(BUFFER_SIZE);
     if req:
         rs = parseRequest(req.decode('ascii'))
 
@@ -164,9 +168,9 @@ def handleClientConncetion(conn, addr):
             isResource = os.path.exists(resource)
 
             if(isResource):
-                code = 200   # if resource found in 'www'
+                code = CODE_OK_200   # if resource found in 'www'
             else:
-                code = 404   # if resource not found in 'www'
+                code = CODE_NOT_FOUND_404   # if resource not found in 'www'
             try:
                 http_response_header = createHTTP_Response_header(resource, code)
                 conn.sendall(http_response_header.encode('ascii'))
@@ -192,7 +196,7 @@ def main():
     sock.bind(('',0))
     sock.listen(5)
     print('\nHTTP Server is Running on \n')
-    print('Host Name: ', host)
+    print('Host Name: ', socket.gethostname())
     print('Port Number: ', sock.getsockname()[1])
     print('')
 
