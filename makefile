@@ -1,2 +1,2 @@
 make:
-	@python3 HTTPServer.py
+	@python3 server.py
