@@ -26,7 +26,7 @@ Just type 'make' on terminal.
 
 `>make`
 		
-make internally calls `python3 HTTPServer.py`
+make internally calls `python3 server.py`
 
 ****Client End:****
 
