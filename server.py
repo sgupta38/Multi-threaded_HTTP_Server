@@ -78,7 +78,7 @@ def getHTTPConnection():
 def createHTTP_Response_header(resource_name, code):
     try:
         if code == CODE_NOT_FOUND_404:
-            resource_name = 'www/404.html'
+            resource_name = '404.html'
 
         HTTP_Response = getHTTPStatus(code) + \
                         getHTTPDate() + \
@@ -115,7 +115,7 @@ def parseRequest(request):
 def sendResourceFile(conn, res_file, code):
     try:
         if code == CODE_NOT_FOUND_404:
-            res_file = 'www/404.html'
+            res_file = '404.html'
 
         res_file = open(res_file, 'rb')
         data = res_file.read(BUFFER_SIZE)
@@ -133,7 +133,7 @@ def sendResourceFile(conn, res_file, code):
 # Function to send '404.html' in case of failures.
 def sendResourceNotFound(conn):
     try:
-        resource = 'www/404.html'
+        resource = '404.html'
         http_response_header = createHTTP_Response_header(resource, 404)
         conn.sendall(http_response_header.encode('ascii'))
         sendResourceFile(conn, resource, CODE_NOT_FOUND_404)
